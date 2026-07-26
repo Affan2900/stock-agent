@@ -1,0 +1,7 @@
+{
+  "min_deterministic_pass_rate": 1.00,
+  "min_stance_accuracy": 1.00,
+  "min_abstention_accuracy": 1.00,
+  "min_grounding_pass_rate": 0.95,
+  "min_overall_judge_score": 0.85
+}

@@ -56,7 +56,7 @@ class GroundingValidator:
                 )
                 
         # 2. Percentage Claim Extraction & Verification
-        # First remove confidence/coverage level references (e.g. "80% confidence" or "80% interval")
+        # First remove confidence/coverage level references
         cleaned_text_for_pct = re.sub(r"\b80(?:\.0+)?\s*%\s*(?:confidence|interval|coverage)?\b", "", draft_text, flags=re.IGNORECASE)
         pct_claims = re.findall(r"([+-]?\d+(?:\.\d+)?)\s*%", cleaned_text_for_pct)
         

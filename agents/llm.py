@@ -30,12 +30,24 @@ class MockLLMProvider(LLMProvider):
         else:
             stance = "NEUTRAL"
             
+        import re
+        med_match = re.search(r"Median 5-day return:\s*([+-]?\d+(?:\.\d+)?)\s*%", prompt)
+        median_str = (med_match.group(1) + "%") if med_match else "1.25%"
+        
+        int_match = re.search(r"80% Conformal Interval:\s*\[([+-]?\d+(?:\.\d+)?)\s*%,\s*([+-]?\d+(?:\.\d+)?)\s*%\]", prompt)
+        if int_match:
+            lower_str = int_match.group(1) + "%"
+            upper_str = int_match.group(2) + "%"
+        else:
+            lower_str, upper_str = "-0.50%", "3.00%"
+            
         return (
             f"Analysis Report\n"
             f"Stance: {stance}\n"
-            f"The 5-trading-day forecast indicates a median return of 1.25% with an 80% confidence interval "
-            f"spanning from -0.50% to 3.00%. Current price action reflects positive momentum."
+            f"The 5-trading-day forecast indicates a median return of {median_str} with an 80% confidence interval "
+            f"spanning from {lower_str} to {upper_str}. Current price action reflects this outlook."
         )
+
 
 class BedrockLLMProvider(LLMProvider):
     """Amazon Bedrock LLM Provider."""
