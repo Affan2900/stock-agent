@@ -56,8 +56,9 @@ class GroundingValidator:
                 )
                 
         # 2. Percentage Claim Extraction & Verification
-        # Extract numbers followed by % or percent (e.g. "1.25%", "-0.50%", "12%")
-        pct_claims = re.findall(r"([+-]?\d+(?:\.\d+)?)\s*%", draft_text)
+        # First remove confidence/coverage level references (e.g. "80% confidence" or "80% interval")
+        cleaned_text_for_pct = re.sub(r"\b80(?:\.0+)?\s*%\s*(?:confidence|interval|coverage)?\b", "", draft_text, flags=re.IGNORECASE)
+        pct_claims = re.findall(r"([+-]?\d+(?:\.\d+)?)\s*%", cleaned_text_for_pct)
         
         if pct_claims and expected_median_pct is not None:
             valid_pct_targets = [expected_median_pct]
@@ -69,6 +70,9 @@ class GroundingValidator:
             for claim_str in pct_claims:
                 try:
                     val = float(claim_str)
+                    # Ignore common nominal coverage percentages (e.g., 80.0)
+                    if abs(val - 80.0) < 1e-3:
+                        continue
                     # Check if claim matches any of the ground truth percentage targets
                     min_diff = min([abs(val - target) for target in valid_pct_targets])
                     if min_diff > self.pct_tolerance:
@@ -77,6 +81,7 @@ class GroundingValidator:
                         )
                 except ValueError:
                     continue
+
                     
         # 3. Directional Word Mismatch Verification
         if expected_stance in ["BEARISH", "ABSTAIN"]:
