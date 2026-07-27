@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: stock-agent-api-service
+spec:
+  type: ClusterIP
+  selector:
+    app: stock-agent-api
+  ports:
+  - port: 8000
+    targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stock-agent-ui-user-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: stock-agent-ui-user
+  ports:
+  - port: 80
+    targetPort: 8501
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stock-agent-ui-ops-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: stock-agent-ui-ops
+  ports:
+  - port: 80
+    targetPort: 8502
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379

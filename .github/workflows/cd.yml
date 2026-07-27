@@ -1,0 +1,52 @@
+name: CD Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  id-token: write # Required for OIDC role assumption
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, Tag, and Push Docker Images
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # API Image
+        docker build -t $ECR_REGISTRY/stock-agent-api:$IMAGE_TAG -t $ECR_REGISTRY/stock-agent-api:latest .
+        docker push $ECR_REGISTRY/stock-agent-api:$IMAGE_TAG
+        docker push $ECR_REGISTRY/stock-agent-api:latest
+
+        # User UI Image
+        docker build -t $ECR_REGISTRY/stock-agent-ui-user:$IMAGE_TAG -t $ECR_REGISTRY/stock-agent-ui-user:latest .
+        docker push $ECR_REGISTRY/stock-agent-ui-user:$IMAGE_TAG
+        docker push $ECR_REGISTRY/stock-agent-ui-user:latest
+
+        # Ops UI Image
+        docker build -t $ECR_REGISTRY/stock-agent-ui-ops:$IMAGE_TAG -t $ECR_REGISTRY/stock-agent-ui-ops:latest .
+        docker push $ECR_REGISTRY/stock-agent-ui-ops:$IMAGE_TAG
+        docker push $ECR_REGISTRY/stock-agent-ui-ops:latest
+
+    - name: Deploy to Amazon EKS
+      run: |
+        aws eks update-kubeconfig --region us-east-1 --name stock-agent-eks
+        kubectl apply -f infra/k8s/
+        kubectl rollout status deployment/stock-agent-api
