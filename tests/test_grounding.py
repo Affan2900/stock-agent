@@ -67,22 +67,21 @@ def test_bullish_language_under_abstention_is_caught(validator):
     assert any("directional" in v.lower() for v in violations)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Known defect: valid_pct_targets is built from the median/lower/upper "
-        "quantiles only, but the prompt also supplies policy confidence, interval "
-        "width, and realized volatility. The model repeating those faithfully is "
-        "scored as fabrication, which drives every live report to ABSTAIN. Fix is "
-        "to accept any figure the pipeline itself supplied."
-    ),
-    strict=False,
+SUPPLIED_CONTEXT = (
+    "• Median 5-day return: 0.08%\n"
+    "• 80% Conformal Interval: [-1.01%, 1.06%] (Width = 2.08%)\n"
+    "• Deterministic Policy Call: NEUTRAL (Confidence: 50%)\n"
+    "- SPY 20-session realized volatility 11.6% annualized."
 )
+
+
 def test_pipeline_supplied_figures_are_not_fabrications(validator):
     """Every number below was handed to the model in its own prompt.
 
     Reproduces the live failure observed against a real backend: 50% is the policy
     confidence, 2.08% the interval width, 11.6% the realized volatility from
-    MarketContext.factual_notes().
+    MarketContext.factual_notes(). Scoring these as invention sent every report to
+    ABSTAIN.
     """
     draft = (
         "Stance: NEUTRAL\n"
@@ -90,5 +89,25 @@ def test_pipeline_supplied_figures_are_not_fabrications(validator):
         "Interval width 2.08%. Policy confidence 50%.\n"
         "20-session realized volatility 11.6% annualized."
     )
-    passed, violations = validator.validate(draft, GROUND_TRUTH)
+    passed, violations = validator.validate(
+        draft, {**GROUND_TRUTH, "supplied_context": SUPPLIED_CONTEXT}
+    )
     assert passed, violations
+
+
+def test_supplied_context_does_not_excuse_invention(validator):
+    """Widening the accepted set must not disarm the check: a figure absent from
+    the prompt is still a violation."""
+    draft = "Stance: NEUTRAL\nWe expect a median 5-day return of 12.40%."
+    passed, violations = validator.validate(
+        draft, {**GROUND_TRUTH, "supplied_context": SUPPLIED_CONTEXT}
+    )
+    assert not passed
+    assert any("12.40" in v for v in violations)
+
+
+def test_absent_supplied_context_still_validates_the_quantiles(validator):
+    """The key is optional; callers that omit it keep the old, narrower behaviour."""
+    draft = "Stance: NEUTRAL\nInterval width 2.08%."
+    passed, _ = validator.validate(draft, GROUND_TRUTH)
+    assert not passed

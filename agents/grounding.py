@@ -18,6 +18,18 @@ class GroundingValidator:
         """
         self.pct_tolerance = pct_tolerance
 
+    _NOMINAL_COVERAGE_RE = re.compile(
+        r"\b80(?:\.0+)?\s*%\s*(?:confidence|interval|coverage)?\b", re.IGNORECASE
+    )
+    _PCT_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*%")
+
+    def _extract_pcts(self, text: str) -> List[float]:
+        """Percentages stated in `text`, with nominal coverage levels removed."""
+        if not text:
+            return []
+        cleaned = self._NOMINAL_COVERAGE_RE.sub("", text)
+        return [float(m) for m in self._PCT_RE.findall(cleaned)]
+
     def validate(
         self,
         draft_text: str,
@@ -34,7 +46,12 @@ class GroundingValidator:
                 - 'lower_return_pct': Expected lower bound return in percent (e.g. -0.50)
                 - 'upper_return_pct': Expected upper bound return in percent (e.g. 3.00)
                 - 'current_price': Expected base price float
-                
+                - 'supplied_context': Optional. The exact text handed to the generator
+                  (analyst summary + market context). Every percentage appearing in it
+                  was computed upstream, so repeating one is faithfulness, not
+                  fabrication. Without this the validator flags policy confidence,
+                  interval width and realized volatility as invented numbers.
+
         Returns:
             passed: True if zero violations found, else False.
             violations: List of human-readable violation descriptions.
@@ -56,33 +73,36 @@ class GroundingValidator:
                 )
                 
         # 2. Percentage Claim Extraction & Verification
-        # First remove confidence/coverage level references
-        cleaned_text_for_pct = re.sub(r"\b80(?:\.0+)?\s*%\s*(?:confidence|interval|coverage)?\b", "", draft_text, flags=re.IGNORECASE)
-        pct_claims = re.findall(r"([+-]?\d+(?:\.\d+)?)\s*%", cleaned_text_for_pct)
-        
+        pct_claims = self._extract_pcts(draft_text)
+
         if pct_claims and expected_median_pct is not None:
             valid_pct_targets = [expected_median_pct]
             if expected_lower_pct is not None:
                 valid_pct_targets.append(expected_lower_pct)
             if expected_upper_pct is not None:
                 valid_pct_targets.append(expected_upper_pct)
-                
-            for claim_str in pct_claims:
-                try:
-                    val = float(claim_str)
-                    # Ignore common nominal coverage percentages (e.g., 80.0)
-                    if abs(val - 80.0) < 1e-3:
-                        continue
-                    # Check if claim matches any of the ground truth percentage targets
-                    min_diff = min([abs(val - target) for target in valid_pct_targets])
-                    if min_diff > self.pct_tolerance:
-                        violations.append(
-                            f"Numeric claim violation: Report states '{val:.2f}%', but no forecast return matching target ({valid_pct_targets}) within tolerance."
-                        )
-                except ValueError:
-                    continue
 
-                    
+            # The quantiles are not the only figures the pipeline hands the model:
+            # the prompt also carries interval width, policy confidence and realized
+            # volatility. Scoring those as fabrications drove every live report to
+            # ABSTAIN, so anything the pipeline itself stated counts as grounded.
+            valid_pct_targets.extend(
+                self._extract_pcts(ground_truth.get("supplied_context", ""))
+            )
+
+            grounded = sorted(set(valid_pct_targets))
+            for val in pct_claims:
+                # Ignore common nominal coverage percentages (e.g., 80.0)
+                if abs(val - 80.0) < 1e-3:
+                    continue
+                # Check if claim matches any figure the pipeline supplied
+                min_diff = min(abs(val - target) for target in grounded)
+                if min_diff > self.pct_tolerance:
+                    violations.append(
+                        f"Numeric claim violation: Report states '{val:.2f}%', but no supplied figure matches within {self.pct_tolerance:.2f}pp (supplied: {grounded})."
+                    )
+
+
         # 3. Directional Word Mismatch Verification
         if expected_stance in ["BEARISH", "ABSTAIN"]:
             bullish_keywords = ["skyrocket", "soar", "rally strongly", "surge 10%"]

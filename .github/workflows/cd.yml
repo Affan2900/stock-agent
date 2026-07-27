@@ -46,7 +46,29 @@ jobs:
         docker push $ECR_REGISTRY/stock-agent-ui-ops:latest
 
     - name: Deploy to Amazon EKS
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
       run: |
         aws eks update-kubeconfig --region us-east-1 --name stock-agent-eks
         kubectl apply -f infra/k8s/
-        kubectl rollout status deployment/stock-agent-api
+
+        # The manifests pin :latest, so `apply` alone is a no-op even after a fresh
+        # push: no spec change, no new ReplicaSet, and the rollout check below would
+        # pass against the previous pods. Pinning the commit SHA makes the running
+        # workload traceable to a commit and forces a real rollout.
+        # Rolled one at a time on purpose. The two-node group has ~1.2Gi of memory
+        # left, and the three surge pods want ~1Gi between them. Since replicas:1
+        # makes maxUnavailable round down to 0, an unschedulable surge pod would sit
+        # Pending while the old pod refuses to retire, and the rollout would deadlock
+        # until the timeout. Serialising caps the extra demand at one pod.
+        kubectl set image deployment/stock-agent-api api=$ECR_REGISTRY/stock-agent-api:$IMAGE_TAG
+        # Bare `rollout status` blocks forever; a bad image would otherwise burn the
+        # job's full 6h limit instead of failing.
+        kubectl rollout status deployment/stock-agent-api --timeout=5m
+
+        kubectl set image deployment/stock-agent-ui-user ui-user=$ECR_REGISTRY/stock-agent-ui-user:$IMAGE_TAG
+        kubectl rollout status deployment/stock-agent-ui-user --timeout=5m
+
+        kubectl set image deployment/stock-agent-ui-ops ui-ops=$ECR_REGISTRY/stock-agent-ui-ops:$IMAGE_TAG
+        kubectl rollout status deployment/stock-agent-ui-ops --timeout=5m

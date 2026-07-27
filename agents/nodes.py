@@ -110,6 +110,11 @@ def critic_node(state: AgentState) -> AgentState:
     lower_pct = round(state.get("lower_return", 0.0) * 100, 2)
     upper_pct = round(state.get("upper_return", 0.0) * 100, 2)
     
+    supplied_context = "\n".join([
+        state.get("analyst_summary", ""),
+        state.get("market_summary", "")
+    ])
+
     validator = GroundingValidator()
     passed, violations = validator.validate(
         draft_text=draft,
@@ -117,7 +122,8 @@ def critic_node(state: AgentState) -> AgentState:
             "policy_stance": stance,
             "median_return_pct": median_pct,
             "lower_return_pct": lower_pct,
-            "upper_return_pct": upper_pct
+            "upper_return_pct": upper_pct,
+            "supplied_context": supplied_context
         }
     )
     
