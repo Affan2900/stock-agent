@@ -91,3 +91,14 @@ logs/
 Thumbs.db
 desktop.ini
 ehthumbs.db
+
+# Terraform
+# Provider binaries: ~705MB locally, and the AWS provider alone exceeds GitHub's
+# 100MB per-file limit, so committing this directory hard-fails the push.
+infra/terraform/.terraform/
+# State records the full resource inventory and can carry resource attributes
+# verbatim; it is regenerable from the cloud and does not belong in git.
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan.out

@@ -1,0 +1,27 @@
+venv/
+.venv/
+env/
+
+# Terraform state, plans, and cached provider binaries (hundreds of MB)
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/tfplan.out
+
+.git/
+.github/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+mlruns/
+docs/
+tests/
+evals/
+*.md
+
+.env
+.env.*
