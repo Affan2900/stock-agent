@@ -79,16 +79,7 @@ python scripts/run_phase4_agent_demo.py
 
 ---
 
-## 💰 AWS Cost Control & Teardown Guarantee
 
-To prevent unexpected cloud spend during evaluation, the infrastructure is designed for rapid spin-up, demonstration, and immediate teardown (~$0.30/hr operational cost):
-
-| Item | Estimated Hourly Spend | Monthly Equivalent (If left 24/7) |
-|---|---|---|
-| **EKS Control Plane** | $0.10 / hr | ~$73.00 |
-| **2 × t3.medium Worker Nodes** | $0.083 / hr | ~$60.00 |
-| **Network & ALB Ingress** | $0.067 / hr | ~$50.00 |
-| **Total Operational Cost** | **~$0.30 / hr** | **Do NOT leave running 24/7** |
 
 ### Safety Rules:
 1. **$10 Billing Alarm**: Configured in [infra/terraform/main.tf](file:///e:/Projects/stock-agent/infra/terraform/main.tf#L26) before any resource is applied.
