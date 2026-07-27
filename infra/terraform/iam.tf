@@ -4,6 +4,20 @@ variable "github_repo" {
   description = "GitHub organization/username and repository name for OIDC federation"
 }
 
+variable "github_repo_immutable" {
+  type        = string
+  default     = "Affan2900@123811141/stock-agent@1312615276"
+  description = <<-EOT
+    Same repository expressed with GitHub's immutable numeric owner and repo IDs.
+    GitHub now issues the OIDC `sub` claim using this form, so a trust policy that
+    only matches the plain owner/repo name is rejected with "Not authorized to
+    perform sts:AssumeRoleWithWebIdentity". Read the current value with:
+      gh api /repos/<owner>/<repo>/actions/oidc/customization/sub
+    Because the IDs survive a rename, this is the stricter of the two patterns:
+    it cannot be claimed by someone who later registers a freed repository name.
+  EOT
+}
+
 # GitHub Actions OIDC Identity Provider
 resource "aws_iam_openid_connect_provider" "github" {
   url             = "https://token.actions.githubusercontent.com"
@@ -27,8 +41,14 @@ resource "aws_iam_role" "github_actions_deploy" {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
+        # Both accepted: GitHub is mid-migration to the immutable-ID subject, and a
+        # list here is an OR. Dropping either one risks CD breaking on whichever
+        # format the runner happens to emit.
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:*"
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_repo}:*",
+            "repo:${var.github_repo_immutable}:*",
+          ]
         }
       }
     }]
